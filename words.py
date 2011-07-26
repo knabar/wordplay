@@ -88,14 +88,31 @@ class Board(object):
     def get_words(self, tiles, pattern):
         used = len(filter(str.isupper, pattern))
         found = dict()
-        for perm in itertools.permutations(tiles, len(pattern) - used):
-            result = []
-            chars = list(perm)
-            for char in pattern:
-                result.append(char if char.isupper() else chars.pop())
-            word = ''.join(result)
-            if WORDS.get(word):
-                found[word] = None
+        
+        def recurse(tiles, head, tail):
+            for index, tile in enumerate(tiles):
+                word = head + tile
+                remaining = tail
+                while True:
+                    remaining = remaining[1:]
+                    if remaining and remaining[0].isupper():
+                        word += remaining[0]
+                    else:
+                        break
+                check = WORDS.get(word)
+                if check is None:
+                    continue
+                elif not tail:
+                    found[word] = None
+                else:
+                    recurse(tiles[:index] + tiles[index + 1:], word, remaining)
+
+        head = ''
+        while pattern[0].isupper():
+            head += pattern[0]
+            pattern = pattern[1:]
+            
+        recurse(tiles, head, pattern)
         return found.keys()
 
 
