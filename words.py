@@ -182,5 +182,6 @@ if __name__ == "__main__":
     
     print datetime.datetime.now() - start
     
-    print len(list(plays))
+    for play in plays:
+        print play
     exit()
