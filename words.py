@@ -1,42 +1,52 @@
 from __future__ import with_statement
 import itertools
+import datetime
 
+
+
+def load_words():
+    with open('words.txt') as data:
+        words = dict()
+        for word in data.readline().split():
+            words[word] = True
+            for prefix in range(2, len(word)):
+                words.setdefault(word[:prefix], False)
+    return words
+
+WORDS = load_words()
 
 
 class Board(object):
 
-    def __init__(self):
-        with open('board.txt') as data:
-            self.board = map(str.strip, data.readlines())
+    def __init__(self, board=None, transpose=False):
+        if board:
+            self.board = board
+        else:
+            with open('board.txt') as data:
+                self.board = map(str.strip, data.readlines())
         self.board_size = len(self.board)
+        if transpose:
+            self.board = [''.join(line[column] for line in self.board) for column in range(self.board_size)]
+
+
+    def transposed(self):
+        return Board(board=self.board, transpose=True)
 
 
     def is_first_move(self):
         return not any(map(str.isupper, self.board))
 
 
-    def get_pattern(self, line, column, start, length, first, num_letters):
-
-        def get_line_pattern(line, start, length):
-            return self.board[line][start:start + length]
-
-        def get_column_pattern(column, start, length):
-            return ''.join(map(lambda col: col[column],
-                               self.board[start:start + length]))
+    def get_pattern(self, line, start, length, first, num_letters):
 
         if first:
             center = self.board_size / 2
             # needs to touch center
-            if not ((line == center or column == center) and (
-                        start <= center and start + length >= center
-                    )):
+            if line != center or start > center or start + length < center:
                 return None
 
         # get pattern from board
-        if column is None:
-            pattern = get_line_pattern(line, start, length)
-        else:
-            pattern = get_column_pattern(column, start, length)
+        pattern = self.board[line][start:start + length]
 
         # validate number of blank spaces
         used = len(filter(str.isupper, pattern))
@@ -47,65 +57,75 @@ class Board(object):
             # no more checks needed
             return pattern
 
+        # can't touch letters before or after
+        if start > 0 and self.board[line][start - 1].isupper():
+            return None
+        if start + length < self.board_size and self.board[line][start + length].isupper():
+            return None
+
         # validate attaching to letter
         if used > 0:
             return pattern
 
-        # can't touch letters before or after
-        if column is None:
-            if start > 0:
-                if self.board[line][start - 1].isupper():
-                    return None
-            if start + length < self.board_size:
-                if self.board[line][start + length].isupper():
-                    return None
-        else:
-            if start > 0:
-                if self.board[start - 1][column].isupper():
-                    return None
-            if start + length < self.board_size:
-                if self.board[start + length][column].isupper():
-                    return None
-
         # check if adjacent rows/columns have letters
-
-        if column is None:
-            if line > 0:
-                if filter(str.isupper, get_line_pattern(line - 1, start, length)):
-                    return pattern
-            if line < self.board_size - 1:
-                if filter(str.isupper, get_line_pattern(line + 1, start, length)):
-                    return pattern
-        else:
-            if column > 0:
-                if filter(str.isupper, get_column_pattern(column - 1, start, length)):
-                    return pattern
-            if column < self.board_size - 1:
-                if filter(str.isupper, get_column_pattern(column + 1, start, length)):
-                    return pattern
+        if line and filter(str.isupper, self.board[line - 1][start:start + length]):
+            return pattern
+        if line < self.board_size - 1 and filter(str.isupper, self.board[line + 1][start:start + length]):
+            return pattern
 
         return None
 
 
     def get_playing_positions(self, num_letters):
-        options = []
         first = self.is_first_move()
+        for line, start in itertools.product(range(self.board_size), range(self.board_size - 1)):
+            for length in range(2, self.board_size - start):
+                pattern = self.get_pattern(line, start, length, first, num_letters)
+                if pattern:
+                    yield line, start, pattern
+    
+    
+    def get_words(self, tiles, pattern):
+        used = len(filter(str.isupper, pattern))
+        found = dict()
+        for perm in itertools.permutations(tiles, len(pattern) - used):
+            result = []
+            chars = list(perm)
+            for char in pattern:
+                result.append(char if char.isupper() else chars.pop())
+            word = ''.join(result)
+            if WORDS.get(word):
+                found[word] = None
+        return found.keys()
 
-        for line in range(self.board_size):
-            for start in range(self.board_size - 1):
-                for length in range(2, self.board_size - start):
-                    pattern = self.get_pattern(line, None, start, length, first, num_letters)
-                    if pattern:
-                        options.append((line, None, start, length, pattern))
 
-        for column in range(self.board_size):
-            for start in range(self.board_size - 1):
-                for length in range(2, self.board_size - start):
-                    pattern = self.get_pattern(None, column, start, length, first, num_letters)
-                    if pattern:
-                        options.append((None, column, start, length, pattern))
+    def check_cross_words(self, column, start, word):
+        for line in range(start, start + len(word)):
+            from_column = to_column = column
+            while from_column > 0 and self.board[line][from_column - 1].isupper():
+                from_column -= 1
+            while to_column < self.board_size - 1 and self.board[line][to_column + 1].isupper():
+                to_column += 1
+            if from_column < to_column:
+                check = self.board[line][from_column:column] + word[line - start] + self.board[line][column + 1:to_column + 1]
+                if not WORDS.get(check):
+                    return False
+        return True
 
-        return options
+
+    def get_plays(self, tiles):
+        transposed = self.transposed()
+        
+        for line, start, pattern in self.get_playing_positions(len(tiles)):
+            for word in self.get_words(tiles, pattern):
+                if transposed.check_cross_words(line, start, word):
+                    # good word
+                    yield line, None, start, word
+        for line, start, pattern in transposed.get_playing_positions(len(tiles)):
+            for word in transposed.get_words(tiles, pattern):
+                if self.check_cross_words(line, start, word):
+                    # good word
+                    yield None, line, start, word
 
 
     def show(self):
@@ -123,11 +143,7 @@ class Board(object):
                 self.board[line] = (self.board[line][:column] +
                                     word[index] +
                                     self.board[line][column + 1:])
-
-
-def load_words():
-    with open('words.txt') as data:
-        return dict((word, None) for word in data.readline().split())
+                
 
 
 def get_tiles():
@@ -141,25 +157,16 @@ def get_tiles():
     return tiles, values
 
 
-words = load_words()
 
-def get_words(tiles, pattern):
-    used = len(filter(str.isupper, pattern))
-    found = dict()
-    for perm in itertools.permutations(tiles, len(pattern) - used):
-        result = []
-        chars = list(perm)
-        for char in pattern:
-            result.append(char if char.isupper() else chars.pop())
-        word = ''.join(result)
-        if words.has_key(word):
-            found[word] = None
-    return found.keys()
 
+
+
+    
 
 
 if __name__ == "__main__":
     
+    print len(WORDS), "words and prefixes"
     
     
     tiles, values = get_tiles()
@@ -169,13 +176,11 @@ if __name__ == "__main__":
     board.play(None, 7, 4, 'HELLO')
     board.play(4, None, 7, 'HAT')
     
-    options = board.get_playing_positions(7)
+    start = datetime.datetime.now()
     
-    board.show()
-   
-     
-    print "Calculating words..."
-    for line, column, start, length, pattern in options:
-        results = get_words('ANDREAS', pattern)
+    plays = list(board.get_plays('ANDREAS'))
     
-    print "Done"
+    print datetime.datetime.now() - start
+    
+    print len(list(plays))
+    exit()
