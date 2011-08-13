@@ -200,8 +200,8 @@ class Board(object):
         
         def recurse(tiles, head, tail, score):
             for index, tile in enumerate(tiles):
-                options = tile if tile != '*' else filter(str.islower,
-                                                          VALUES.keys())
+                options = (tile if tile != '*'
+                                else (t for t in VALUES.keys() if t.islower()))
                 for option in options:
                     # check if we tried this letter before in this position
                     if option in invalid_cross_tiles.setdefault(len(head), []):
@@ -219,17 +219,13 @@ class Board(object):
                         # invalid, remember letter to not try again in this pos
                         invalid_cross_tiles[len(head)].append(option)
                         continue
-                    else:
-                        new_score.add_cross_score(cross_score)
                     
-                    remaining = tail
-                    while True:
-                        remaining = remaining[1:]
-                        if remaining and remaining[0].isalpha():
-                            new_score.play_tile(line, start + len(word))
-                            word += remaining[0]
-                        else:
-                            break
+                    new_score.add_cross_score(cross_score)
+                    
+                    remaining = tail[1:]
+                    while remaining and remaining[0].isalpha():
+                        new_score.play_tile(line, start + len(word))
+                        word += remaining.pop(0)
                     check = WORDS.get(word.upper())
                     if check is None:
                         continue
@@ -244,29 +240,29 @@ class Board(object):
         score = Score(self)
         while pattern[0].isalpha():
             score.play_tile(line, start + len(head))
-            head += pattern[0]
-            pattern = pattern[1:]
+            head += pattern.pop(0)
             
-        recurse(tiles, head, pattern, score)
+        recurse(tiles, head, list(pattern), score)
         return found.iteritems()
 
 
     def get_plays(self, tiles):
         for line, start, pattern in self.get_playing_positions(len(tiles)):
-            for word, score in self.get_words(line, start, tiles, pattern):
+            for word, score in \
+                self.get_words(line, start, tiles, list(pattern)):
                 yield Play(line, None, start, word, score, pattern)
-        for line, start, pattern in \
+        for column, start, pattern in \
             self.transposed.get_playing_positions(len(tiles)):
             for word, score in \
-                self.transposed.get_words(line, start, tiles, pattern):
-                yield Play(None, line, start, word, score, pattern)
+                self.transposed.get_words(column, start, tiles, list(pattern)):
+                yield Play(None, column, start, word, score, pattern)
 
 
     def show(self):
         print re.sub('[.:!23]', ' ', '\n'.join(self.board))
 
 
-    def play(self, play):     #line, column, start, word):
+    def play(self, play):     
         if play.column is None:
             self.board[play.line] = (self.board[play.line][:play.start] +
                 play.word +
