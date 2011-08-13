@@ -36,6 +36,7 @@ class Score(object):
     def __init__(self, board):
         self.score = 0
         self.multiplier = 1
+        self.tiles_played = 0
         self.cross_score = 0
         self.board = board
         
@@ -43,6 +44,7 @@ class Score(object):
         dup = Score(self.board)
         dup.score = self.score
         dup.multiplier = self.multiplier
+        dup.tiles_played = self.tiles_played
         dup.cross_score = self.cross_score
         return dup
     
@@ -51,6 +53,7 @@ class Score(object):
         if field.isalpha():
             self.score += VALUES[field]
         else:
+            self.tiles_played += 1
             tile_multiplier = 1
             if field == '.':
                 pass
@@ -68,7 +71,8 @@ class Score(object):
         self.cross_score += cross_score
     
     def get_word_score(self):
-        return self.score * self.multiplier + self.cross_score
+        return (self.score * self.multiplier + self.cross_score +
+                (50 if self.tiles_played == 7 else 0))
 
 
 class Play(object):
