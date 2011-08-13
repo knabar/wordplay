@@ -1,8 +1,9 @@
+#pylint: disable=C0111
+
 from __future__ import with_statement
 import itertools
 import re
 from random import shuffle
-
 
 def load_words():
     with open('words.txt') as data:
@@ -77,10 +78,8 @@ class Score(object):
 
 class Play(object):
     
-    def __init__(self, line, column, start, word, score=None, pattern=None):
-        self.line = line
-        self.column = column
-        self.start = start
+    def __init__(self, position, word, score=None, pattern=None):
+        self.line, self.column, self.start = position
         self.word = word
         self.score = score
         self.pattern = pattern
@@ -91,7 +90,7 @@ class Play(object):
                 yield letter if letter.isupper() else '*'
     
     def __repr__(self):
-        return ("Play(%s,%s,%s,'%s',%s,'%s')" %
+        return ("Play((%s,%s,%s),'%s',%s,'%s')" %
                 (self.line, self.column, self.start,
                  self.word, self.score, self.pattern))
     
@@ -250,12 +249,12 @@ class Board(object):
         for line, start, pattern in self.get_playing_positions(len(tiles)):
             for word, score in \
                 self.get_words(line, start, tiles, list(pattern)):
-                yield Play(line, None, start, word, score, pattern)
+                yield Play((line, None, start), word, score, pattern)
         for column, start, pattern in \
             self.transposed.get_playing_positions(len(tiles)):
             for word, score in \
                 self.transposed.get_words(column, start, tiles, list(pattern)):
-                yield Play(None, column, start, word, score, pattern)
+                yield Play((None, column, start), word, score, pattern)
 
 
     def show(self):
