@@ -120,15 +120,14 @@ class Board(object):
                           for column in range(self.board_size)]
         else:
             self.transposed = Board(board=self.board, master=self)
+            
+        self.first_move = not any(any(char.isalpha() for char in line)
+                                  for line in self.board)
 
 
-    def is_first_move(self):
-        return not any(any(char.isalpha() for char in line)
-                       for line in self.board)
+    def get_pattern(self, line, start, length, num_letters):
 
-    def get_pattern(self, line, start, length, first, num_letters):
-
-        if first:
+        if self.first_move:
             center = self.board_size / 2
             # needs to touch center
             if line != center or start > center or start + length - 1 < center:
@@ -138,42 +137,36 @@ class Board(object):
         pattern = self.board[line][start:start + length]
 
         # validate number of blank spaces
-        used = len(filter(str.isalpha, pattern))
+        used = len([p for p in pattern if p.isalpha()])
         if (len(pattern) - used > num_letters) or (len(pattern) == used):
             return None
 
-        if first:
+        if self.first_move:
             # no more checks needed
             return pattern
 
         # can't touch letters before or after
-        if start > 0 and self.board[line][start - 1].isalpha():
-            return None
-        if (start + length < self.board_size and
+        if (start > 0 and self.board[line][start - 1].isalpha()) or (
+            start + length < self.board_size and
             self.board[line][start + length].isalpha()):
             return None
 
-        # validate attaching to letter
-        if used > 0:
-            return pattern
-
-        # check if adjacent rows/columns have letters
-        if ((line > 0 and
-             filter(str.isalpha, self.board[line - 1][start:start + length])) or
-            (line < self.board_size - 1 and
-             filter(str.isalpha, self.board[line + 1][start:start + length]))):
+        # validate attaching to letter either within word or adjacent row/col
+        if used > 0 or (
+            (line > 0 and any(t.isalpha()
+                        for t in self.board[line - 1][start:start + length])) or
+            (line < self.board_size - 1 and any(t.isalpha()
+                        for t in self.board[line + 1][start:start + length]))):
             return pattern
 
         return None
 
 
     def get_playing_positions(self, num_letters):
-        first = self.is_first_move()
         for line, start in itertools.product(range(self.board_size),
                                              range(self.board_size - 1)):
             for length in range(2, self.board_size - start):
-                pattern = self.get_pattern(line, start, length,
-                                           first, num_letters)
+                pattern = self.get_pattern(line, start, length, num_letters)
                 if pattern:
                     yield line, start, pattern
     
@@ -286,6 +279,7 @@ class Board(object):
                                     self.board[line][play.column + 1:])
         
         self.transposed = Board(board=self.board, master=self)
+        self.first_move = False
 
 
 class Player(object):
